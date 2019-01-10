@@ -1,0 +1,115 @@
+%% LaTeX2e class for seminar theses
+%% seminar.tex
+%% 
+%% Karlsruhe Institute of Technology
+%% Institute for Program Structures and Data Organization
+%% Chair for Software Design and Quality (SDQ)
+%%
+%% Dr.-Ing. Erik Burger
+%% burger@kit.edu
+%%
+%% Version 1.0.1, 2018-04-16
+
+%% Available page modes: oneside, twoside
+%% Available languages: english, ngerman
+%% Available modes: draft, final (see README)
+\documentclass[oneside, english, final]{sdqseminar}
+%% ---------------------------------
+%% | Information about the thesis  |
+%% ---------------------------------
+
+%% Name of the author
+\author{Christian  Oder}
+
+%% Title (and possibly subtitle) of the thesis
+\title{Android custom ROM development}
+
+%% Type of the thesis 
+% \thesistype{Seminar Thesis}
+
+%% Change the institute here, ``IPD'' is default
+% \myinstitute{Institute for \dots}
+
+\settitle
+
+%% --------------------------------
+%% | Settings for word separation |
+%% --------------------------------
+
+%% Describe separation hints here.
+%% For more details, see 
+%% http://en.wikibooks.org/wiki/LaTeX/Text_Formatting#Hyphenation
+\hyphenation{
+% me-ta-mo-del
+}
+
+%% --------------------------------
+%% | Glossary                     |
+%% --------------------------------
+
+\makenoidxglossaries
+\input{sections/glossary.tex}
+
+%% --------------------------------
+%% | Bibliography                 |
+%% --------------------------------
+
+\bibliographystyle{abbrvnat}
+
+%% --------------------------------
+%% | Hypenation Protection        |
+%% --------------------------------
+\hyphenation{Android}
+
+%% ====================================
+%% ====================================
+%% ||                                ||
+%% || Beginning of the main document ||
+%% ||                                ||
+%% ====================================
+%% ====================================
+\begin{document}
+
+%% Set PDF metadata
+\setpdf
+
+%% Set the title
+\maketitle
+
+%% ----------------
+%% |   Abstract   |
+%% ----------------
+ 
+%% The text is included from the following files:
+%% - sections/abstract
+
+\begin{abstract}
+\input{sections/abstract.tex}
+\end{abstract}
+
+%% -----------------
+%% |   Main part   |
+%% -----------------
+
+\input{sections/introduction.tex}
+\newpage
+\input{sections/content.tex}
+\newpage
+\input{sections/conclusion.tex}
+\newpage
+
+%% --------------------------------
+%% | Glossary                     |
+%% --------------------------------
+
+\printnoidxglossary
+\printnoidxglossary[type=\acronymtype]
+
+%% --------------------
+%% |   Bibliography   |
+%% --------------------
+
+%% Add entry to the table of contents for the bibliography
+\bibliography{seminar}
+
+\end{document}
