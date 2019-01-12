@@ -167,3 +167,6 @@
 
 % Bibliography
 \RequirePackage{natbib}
+
+% enquote
+\RequirePackage{csquotes}

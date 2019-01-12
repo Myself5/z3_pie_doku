@@ -10,51 +10,200 @@
 %%
 %% Version 1.0, 2018-04-16
 
-\section{First Content Section}
-\label{ch:FirstContentSection}
+The general procedure can be seperated in three steps:
+\begin{itemize}
+	\item{\nameref{ch:GettingItToBuild}}
+	\item{\nameref{ch:BootingTheDevice}}
+	\item{\nameref{ch:FixingFeatures}}
+\end{itemize}
 
-%% -------------------
-%% | Example content |
-%% -------------------
-The content chapters of your thesis should of course be renamed. How many
-chapters you need to write depends on your thesis and cannot be said in general.
+\section{Getting it to build}
+\label{ch:GettingItToBuild}
 
-Check out the examples theses in the SDQWiki:
+The first step is to adapt the device sources to changes inside the Android framework, so that we can successfully compile a ROM for said device.
+On the \gls{gls:z3} the below mentioned steps were required. The responding commits are below each subsection.
 
-\url{https://sdqweb.ipd.kit.edu/wiki/Form_der_Ausarbeitung_bei_Seminaren}
+\subsection{Removing old configs}
 
-Of course, you can split this .tex file into several files if you prefer. 
+The HWUI config imported in the device tree contained only obsolete configs. It therefore is no longer existent and we need to remove the inclusion.
 
+\href{https://github.com/CarbonROM/android_device_sony_z3/commit/5e0b81ac20be8adcb7e7f42ba431175c0d56c917}{https://github.com/\\CarbonROM/android\_device\_sony\_z3/commit/5e0b81ac20be8adcb7e7f42ba431175c0d56c917}
 
-\subsection{First Subsection}
-\label{sec:FirstContentSection:FirstSubSection}
+\subsection{Adjusting the init library}
+The init library is, as the name suggests, responsible for preparing and starting the system.
+The init is extended by the devicetree in order to handle device specific requirements.
+Due to method changes in Pie, we need to adjust our init extension.
 
-\dots
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8106}
 
-\subsection{A Subsection}
-\label{sec:FirstContentSection:FirstSubSubSection}
+\subsection{Updating the libshim}
 
-\dots
+Shims are libraries to replace code in other libraries. Upon boot, the bionic libraries load those shim libs over existing libraries and replace certain method calls.
+That is neccessary when a method signature changes across Android releases (like it would on Android 9 with the binaries from Android 6.0) or when a method needs to be replaced (like working around camera DRM limitations).
 
+On the \gls{gls:z3} we needed to update the signal.h shim based on the Android 9 signal header to handle method and structural changes.
 
-\section{Second Content Section}
-\label{ch:SecondContentSection}
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8088}
 
-\dots
+\subsection{Handling basic changes in SELinux}
 
-\subsection{First Subsection}
-\label{sec:SecondContentSection:FirstSubsection}
+\acrshort{ac:selinux} rules and definitions usually change across the releases, so we need to adjust ours with some basic changes. Denials will be solved later on. In theory \acrshort{ac:selinux} could be disabled, although it's better practice to solve the basic issues beforehand as some services require \acrshort{ac:selinux} domains in order to work. On some devices that could prevent the device from booting successfully, in our case we know that the SIM Services and therefore mobile radio would have been broken.
+As we're dealing with a legacy device, we're now using the Qualcomm provided legacy \acrshort{ac:selinux} rules.
 
-\dots
+Nonetheless, until we we reach \ref{sub:selinux_denials}, we're going to operate the system in \acrshort{ac:selinux} Permissive mode. That mode logs when there would be a denial so that it can be fixed later on, but grants access for the time being.
 
-\subsection{Second Subsection}
-\label{sec:SecondContentSection:SecondSubsection}
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8107}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8113}
 
-\dots
+\subsection{Kernel changes}
 
-Add additional content sections if required by adding new .tex files in the
-\code{sections/} directory and adding an appropriate 
-\code{\textbackslash input} statement in \code{thesis.tex}. 
+On some Android revisions there are multiple Kernel changes required in order to build or boot. For example on Android 8.0, the Kernel required the introduction of Kernel feature to handle the new \gls{gls:hal}.
+
+On Android 9, only small changes have been done, which is why we only require small header changes.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_kernel_sony_msm8974/+/8098}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_kernel_sony_msm8974/+/8097}
+
+(the latter should be considered a Hack for now and will be replaced by the original commits with proper authorship)
+
+\subsection{Fixing the FM driver}
+\label{sub:fixing_fm}
+
+The FM driver, responsible for the FM Radio handling is not made by Google. The project it originates from is no longer updated, so the community needs to take care of that.
+Android 9 introduced a lot stricter global C-flags so the build would error out on certain C warning, like an unused variable.
+
+This is solved be either solving the warnings, like removing an unused variable, or reintroducing the C flags for the troublesome code.
+
+\href{https://github.com/CarbonBeta/android_hardware_broadcom_fm/commit/7ccedbcea03e93de47d4d17034436f3ed5b5f671}{https://github.com/\\CarbonBeta/android\_hardware\_broadcom\_fm/commit/7ccedbcea03e93de47d4d17034436f3ed5b5f671}
+
+\section{Booting the device}
+\label{ch:BootingTheDevice}
+Just because the ROM now successfully compiles, it doesn't mean that it boots. Very often, there are additional commits required to get the device booting, or to prevent it from crashing right away.
+
+Thankfully, that was not the case on the \gls{gls:z3}, but as we were expecting this to happen we already made some pretaration.
+Due to changes in the USB \acrshort{ac:hal} we now need to set an USB compat mode for USB debugging to work.
+We do that by setting \texttt{sys.usb.ffs.aio\_compat} to \texttt{1} at boot and introducing our own basic USB \acrshort{ac:hal}.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8136}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8092}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8093}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8095}
+
+\section{Fixing broken features}
+\label{ch:FixingFeatures}
+
+Now that our phone boots, we move on to checking what is working and what is not, so that we can solve that.
+
+\subsection{Fixing WiFi}
+
+From other devices we roughly know what kind of changes are needed to fix which issue. In terms of WiFi, we know that we have a Broadcom WiFi and Bluetooth chip.
+What we do, is increasing the revisions of the \gls{gls:wpas} and the WiFi \acrshort{ac:hal}.
+On top of that, the flags passed to the \gls{gls:wpas} service need to be adjusted to deal with changes in Android 9.
+
+For example we need to move the \gls{gls:wpas} control socket to a new path, as Android 9 doesn't allow sockets to be in \texttt{data/misc/wifi/sockets}.
+
+Instead, they have to be in \texttt{/data/vendor/wifi/wpa/sockets} now. These changes were common on almost any Android device getting updated to Android 9.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8082}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8084}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8085}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8086}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8089}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8090}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8091}
+
+In addition, we require small changes to the \gls{gls:aosp} (\acrshort{ac:aosp}) repository. Instead of maintaining our own fork for that, we're going to use the \texttt{hardware/broadcom/wifi} repository from \gls{gls:lineage}.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android/+/8109}
+
+\subsection{Solving the Bluetooth by getting back the MAC Address}
+
+Bluetooth was rather tricky. We already knew that it's required to change move the socket and therefore that it's required to create the folder structure for that, but even then bluetooth would not work. The reason behind that, was that it failed to read the bluetooth address from the socket in \texttt{/data/vendor/bluetooth/bluetooth\_bdaddr}.
+
+That's caused by the the way MAC address handling is done on Sony devices. The address is stored on a seperate partition, the \texttt{TA} Partition.
+To read from that address, we use \texttt{macaddrsetup}. The \texttt{macaddrsetup} we used reads the address from \texttt{TA}, and writes it to the socket in \texttt{/data/misc/bluetooth/bluetooth\_bdaddr}. That socket is wrong for Android 9. However, \acrshort{ac:sodp} already updated \texttt{macaddrsetup} to write to the correct socket\footnote{\url{https://github.com/sonyxperiadev/macaddrsetup/commit/a7416d68697ae60f5f5fcd53db5ead7081a06bc6}}. So the issue has been solved by using the updated \texttt{macaddrsetup}.
+
+As pointed out by a \gls{gls:lineage} developer later on, the \texttt{} repository from \ref{sub:fixing_fm} is required for bluetooth too. Removing that while thinking that the FM radio would't work due to the lack of App and framework support would not work anyways he later on quickly regretted that decision.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android/+/8142}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8148}
+
+Additionally, it was necessary to add changes to \texttt{hardware/broadcom/libbt}. As \gls{gls:lineage} has all those changes, we use their repository.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android/+/8142}
+
+\subsection{Using a prebuilt NFC \acrshort{ac:hal}}
+
+The NXP Semiconductors PN547 chip used in the \acrshort{ac:z3} is no longer properly supported by the \gls{gls:aosp}.
+We therefore no longer compile the drivers but instead use a prebuilt solution with binaries built with Android 8.0.
+
+That means we remove the package inclusions of the NFC binaries in the device tree and add the prebuilt binaries to the \texttt{vendor/sony} repository that contains the proprietary binaries.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8134}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8137}\\
+\href{https://github.com/obsd39/proprietary_vendor_sony/commit/9708b725aaef8634ad345bebbf3e36ed6d07b27d}{https://github.com/\\obsd39/proprietary\_vendor\_sony/commit/9708b725aaef8634ad345bebbf3e36ed6d07b27d}
+
+It's also required to adjust the NFC config that defines supported features by removing the feature configs that are unsupported in Android 9 and by renaming the config so that it gets picked up by the system.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_z3/+/8080}
+
+\subsection{Fixing the Camera after restarts}
+On the first boot, the camera would work fine. However, after a reboot the system is not granting access to the camera because the calling process is the \texttt{mediaserver}.
+By default, Android would only allow the \texttt{cameraserver} to communicate with the camera. This commit conditionally allows the camera to be access by the \texttt{mediaserver} too, so we add that to the framework
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_frameworks_base/+/8160}
+
+and enable it in the devicetree.
+
+\url{https://review.carbonrom.org/#/c/CarbonROM/android_device_sony_msm8974-common/+/8209}
+
+\subsection{Solving media playback issues}
+With outdated graphics drivers as the \acrshort{ac:z3} has, the gralloc buffer requires certain usage bits that are no longer allowed in Android 9.
+
+The gralloc handling has therefore been extended to allow accepting a custom set of gralloc flags
+
+\href{https://github.com/CarbonROM/android_frameworks_native/commit/50a0f37295047560801e9de4beae91704c60b256}{https://github.com/\\CarbonROM/android\_frameworks\_native/commit/50a0f37295047560801e9de4beae91704c60b256}
+
+and those flags have been defined in the devicetree.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8096}
+
+\subsection{Solving \acrshort{ac:selinux} Denials}
+\label{sub:selinux_denials}
+After the existing flaws have been solved, \acrshort{ac:selinux} denials should be solved so that \acrshort{ac:selinux} can bet set to run in Enforcing mode again.
+\acrshort{ac:aosp} has a very detailed writeup on how to detect, handle and solve \acrshort{ac:selinux} denials\footnote{\url{https://source.android.com/security/selinux/validate}}.
+
+A good orientation is using \texttt{audit2allow}, however common sense should be used when writing the rules. We updated our SELinux rules to adjust for Android internal changes as well as updated subsystem like the updates of \gls{gls:timekeep}.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8140}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8114}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8115}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8116}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8146}
+
+\subsection{Miscellaneous}
+
+This section will be about the changes that were done without fixing any \enquote{apparent} issues.
+
+We moved \texttt{tad\_static}, a binary responsible mainly for the camera, but for almost everything else on newer Sony devices to to be running as a \texttt{core} service instead of having it run in the now semi-abandoned \texttt{trimarea} context. This did not solve or cause any issues on the \acrshort{ac:z3}, however, on one of it's successors, the Sony Xperia XZ Premium and Sony Xperia XA2 this would solve a variety of issues with mobile radio and other services.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8139}
+
+We updated the power \acrshort{ac:hal} from Version \texttt{1.0} to \texttt{1.1}. The power \acrshort{ac:hal} is responsible for power management. The system would work without it, but the battery life would be greatly impacted. We also removed references to the previously used \gls{gls:lineage} power \acrshort{ac:hal}.
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8108}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8110}
+
+The tethering configurations have been removed in order to let Android automatically handle the upstream network
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8111} 
+
+And we updated the sources for the latest changes in the \acrshort{ac:sodp} \gls{gls:timekeep} as well as other \acrshort{ac:sodp} repositories (hosted by \gls{gls:omnirom}).
+
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8081}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_shinano-common/+/8141}\\
+\url{https://review.carbonrom.org/c/CarbonROM/android_device_sony_msm8974-common/+/8148}
+
 %% ---------------------
 %% | / Example content |
 %% ---------------------
